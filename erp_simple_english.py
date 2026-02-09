@@ -70,9 +70,10 @@ class ERPSystem:
         # Products table
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS products (
-                product_code TEXT PRIMARY KEY,
+                
+                Category TEXT ,
                 product_name TEXT NOT NULL,
-                unit_of_measure TEXT,
+                Quantitee TEXT,
                 purchase_price REAL DEFAULT 0,
                 selling_price REAL DEFAULT 0,
                 minimum_limit INTEGER DEFAULT 10,
@@ -84,12 +85,12 @@ class ERPSystem:
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS inventory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_code TEXT,
+                Category TEXT,
                 movement TEXT,
                 quantity INTEGER,
                 date DATETIME DEFAULT CURRENT_TIMESTAMP,
                 reference TEXT,
-                FOREIGN KEY (product_code) REFERENCES products(product_code)
+                FOREIGN KEY (Category) REFERENCES products(Category)
             )
         ''')
         
@@ -152,8 +153,8 @@ class ERPSystem:
                     ('ITEM-0005', '24 Inch Monitor', 'unit', 900, 1400, 8)
                 ]
                 self.cursor.executemany('''
-                    INSERT INTO products (product_code, product_name, unit_of_measure, purchase_price, selling_price, minimum_limit)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO products (product_code, Category, product_name, Quantitee, purchase_price, selling_price, minimum_limit)
+                    VALUES (?, ?, ?, ?, ?, ?,?)
                 ''', products)
                 
                 self.conn.commit()
@@ -375,9 +376,9 @@ class ERPSystem:
         
         # Form fields
         fields = [
-            ("Product Code:", "product_code"),
+            ("Category:", "Category"),
             ("Product Name:", "product_name"),
-            ("Unit of Measure:", "unit_of_measure"),
+            ("Quantitee:", "Quantitee"),
             ("Purchase Price:", "purchase_price"),
             ("Selling Price:", "selling_price"),
             ("Minimum Limit:", "minimum_limit")
@@ -411,7 +412,7 @@ class ERPSystem:
                                    font=('Arial', 11, 'bold'))
         table_frame.pack(fill='both', expand=True, padx=10, pady=10)
         
-        columns = ('Code', 'Name', 'Unit', 'Purchase Price', 'Selling Price', 
+        columns = ('Category', 'Name', 'Quantitee', 'Purchase Price', 'Selling Price', 
                   'Min. Limit', 'Date Added')
         self.products_tree = ttk.Treeview(table_frame, columns=columns,
                                          show='headings', height=12)
@@ -486,7 +487,7 @@ class ERPSystem:
         
         # Item selection
         self.item_vars = {
-            'product_code': tk.StringVar(),
+            'Category': tk.StringVar(),
             'quantity': tk.StringVar(value="1"),
             'price': tk.StringVar()
         }
@@ -494,12 +495,12 @@ class ERPSystem:
         tk.Label(items_frame, text="Product:", font=('Arial', 10)).grid(
             row=0, column=0, sticky='e', padx=5, pady=5)
         
-        self.cursor.execute("SELECT product_code, product_name FROM products")
+        self.cursor.execute("SELECT Category, product_name FROM products")
         products = self.cursor.fetchall()
         product_list = [f"{code} - {name}" for code, name in products]
         
         self.sales_product_combo = ttk.Combobox(items_frame,
-                                    textvariable=self.item_vars['product_code'],
+                                    textvariable=self.item_vars['Category'],
                                     values=product_list, width=30, font=('Arial', 10))
         self.sales_product_combo.grid(row=0, column=1, sticky='w', padx=5, pady=5)
         self.sales_product_combo.bind('<<ComboboxSelected>>', self.on_product_selected)
@@ -595,7 +596,7 @@ class ERPSystem:
         form_frame.pack(fill='x', padx=10, pady=10)
         
         self.inventory_vars = {
-            'product_code': tk.StringVar(),
+            'Category': tk.StringVar(),
             'movement': tk.StringVar(value='in'),
             'quantity': tk.StringVar(),
             'reference': tk.StringVar()
@@ -604,12 +605,12 @@ class ERPSystem:
         tk.Label(form_frame, text="Product:", font=('Arial', 10)).grid(
             row=0, column=0, sticky='e', padx=5, pady=5)
         
-        self.cursor.execute("SELECT product_code, product_name FROM products")
+        self.cursor.execute("SELECT Category, product_name FROM products")
         products = self.cursor.fetchall()
         product_list = [f"{code} - {name}" for code, name in products]
         
         self.inventory_product_combo = ttk.Combobox(form_frame,
-                                    textvariable=self.inventory_vars['product_code'],
+                                    textvariable=self.inventory_vars['Category'],
                                     values=product_list, width=30, font=('Arial', 10))
         self.inventory_product_combo.grid(row=0, column=1, sticky='w', padx=5, pady=5)
         
@@ -648,7 +649,7 @@ class ERPSystem:
                                    font=('Arial', 11, 'bold'))
         table_frame.pack(fill='both', expand=True, padx=10, pady=10)
         
-        columns = ('ID', 'Product Code', 'Movement', 'Quantity', 'Date', 'Reference')
+        columns = ('ID', 'Category', 'Movement', 'Quantity', 'Date', 'Reference')
         self.inventory_tree = ttk.Treeview(table_frame, columns=columns,
                                           show='headings', height=15)
         
@@ -856,7 +857,7 @@ class ERPSystem:
         for item in self.products_tree.get_children():
             self.products_tree.delete(item)
         
-        self.cursor.execute("SELECT * FROM products ORDER BY product_code")
+        self.cursor.execute("SELECT * FROM products ORDER BY Category")
         for row in self.cursor.fetchall():
             self.products_tree.insert('', 'end', values=row)
         
@@ -866,7 +867,7 @@ class ERPSystem:
     def add_product(self):
         """Add new product"""
         try:
-            code = self.product_vars['product_code'].get().strip()
+            code = self.product_vars['Category'].get().strip()
             name = self.product_vars['product_name'].get().strip()
             
             if not code or not name:
@@ -874,13 +875,13 @@ class ERPSystem:
                 return
             
             self.cursor.execute('''
-                INSERT INTO products (product_code, product_name, unit_of_measure, 
+                INSERT INTO products (Category, product_name, Quantitee, 
                                     purchase_price, selling_price, minimum_limit)
                 VALUES (?, ?, ?, ?, ?, ?)
             ''', (
                 code,
                 name,
-                self.product_vars['unit_of_measure'].get(),
+                self.product_vars['Quantitee'].get(),
                 float(self.product_vars['purchase_price'].get() or 0),
                 float(self.product_vars['selling_price'].get() or 0),
                 int(self.product_vars['minimum_limit'].get() or 10)
@@ -1247,7 +1248,7 @@ class ERPSystem:
     def add_inventory_movement(self):
         """Add inventory movement"""
         try:
-            product_info = self.inventory_vars['product_code'].get()
+            product_info = self.inventory_vars['Category'].get()
             if not product_info:
                 messagebox.showwarning("Warning", "Please select a product")
                 return
@@ -1258,7 +1259,7 @@ class ERPSystem:
             reference = self.inventory_vars['reference'].get()
             
             self.cursor.execute('''
-                INSERT INTO inventory (product_code, movement, quantity, reference)
+                INSERT INTO inventory (Category, movement, quantity, reference)
                 VALUES (?, ?, ?, ?)
             ''', (product_code, movement, quantity, reference))
             
@@ -1272,7 +1273,7 @@ class ERPSystem:
     
     def clear_inventory_form(self):
         """Clear inventory form"""
-        self.inventory_vars['product_code'].set('')
+        self.inventory_vars['Category'].set('')
         self.inventory_vars['movement'].set('in')
         self.inventory_vars['quantity'].set('')
         self.inventory_vars['reference'].set('')

@@ -1,0 +1,4 @@
+Invoice Number,Date,Customer Code,Customer Name,Product Code,Product Name,Quantity,Price,Total,Discount,Net Total
+INV-00001,2026-02-09 22:33:17,CUS-0002,Success Trading Establishment,ITEM-0002,HP Printer,4,1200.0,4800.0,0.0,10880.0
+INV-00001,2026-02-09 22:33:17,CUS-0002,Success Trading Establishment,ITEM-0003,Wireless Mouse,6,80.0,480.0,0.0,10880.0
+INV-00001,2026-02-09 22:33:17,CUS-0002,Success Trading Establishment,ITEM-0005,24 Inch Monitor,4,1400.0,5600.0,0.0,10880.0

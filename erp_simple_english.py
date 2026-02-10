@@ -157,15 +157,15 @@ class ERPSystem:
                 
                 # Add sample products
                 products = [
-                    ('ITEM-0001', 'Dell Laptop', 'unit', 2500, 3200, 5),
-                    ('ITEM-0002', 'HP Printer', 'unit', 800, 1200, 10),
-                    ('ITEM-0003', 'Wireless Mouse', 'piece', 50, 80, 50),
-                    ('ITEM-0004', 'Keyboard', 'piece', 70, 100, 30),
-                    ('ITEM-0005', '24 Inch Monitor', 'unit', 900, 1400, 8)
+                    (1, 'pc', 'Dell Laptop', 'unit', 2500, 3200, 5),
+                    (2, 'pc', 'HP Printer', 'unit', 800, 1200, 10),
+                    (3, 'pc', 'Wireless Mouse', 'piece', 50, 80, 50),
+                    (4, 'pc', 'Keyboard', 'piece', 70, 100, 30),
+                    (5, 'pc', '24 Inch Monitor', 'unit', 900, 1400, 8)
                 ]
                 self.cursor.executemany('''
                     INSERT INTO products (product_code, Category, product_name, Quantitee, purchase_price, selling_price, minimum_limit)
-                    VALUES (?, ?, ?, ?, ?, ?,?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', products)
                 
                 self.conn.commit()
@@ -424,7 +424,7 @@ class ERPSystem:
                                    font=('Arial', 11, 'bold'))
         table_frame.pack(fill='both', expand=True, padx=10, pady=10)
         
-        columns = ('Category', 'Name', 'Quantitee', 'Purchase Price', 'Selling Price', 
+        columns = ('product_code', 'Category', 'Name', 'Quantitee', 'Purchase Price', 'Selling Price', 
                   'Min. Limit', 'Date Added')
         self.products_tree = ttk.Treeview(table_frame, columns=columns,
                                          show='headings', height=12)
@@ -930,7 +930,7 @@ class ERPSystem:
         for item in self.products_tree.get_children():
             self.products_tree.delete(item)
         
-        self.cursor.execute("SELECT * FROM products ORDER BY Category")
+        self.cursor.execute("SELECT * FROM products ORDER BY product_code")
         for row in self.cursor.fetchall():
             self.products_tree.insert('', 'end', values=row)
         
@@ -973,7 +973,7 @@ class ERPSystem:
     def update_product(self):
         """Update existing product"""
         try:
-            code = self.product_vars['product_code'].get().strip()
+            code = self.product_vars['product_name'].get().strip()
             
             if not code:
                 messagebox.showwarning("Warning", "Please select a product to update")
@@ -981,12 +981,13 @@ class ERPSystem:
             
             self.cursor.execute('''
                 UPDATE products 
-                SET product_name=?, unit_of_measure=?, purchase_price=?, 
+                SET Category=?, product_name=?, Quantitee=?, purchase_price=?, 
                     selling_price=?, minimum_limit=?
-                WHERE product_code=?
+                WHERE product_name=?
             ''', (
+                self.product_vars['Category'].get(),
                 self.product_vars['product_name'].get(),
-                self.product_vars['unit_of_measure'].get(),
+                self.product_vars['Quantitee'].get(),
                 float(self.product_vars['purchase_price'].get() or 0),
                 float(self.product_vars['selling_price'].get() or 0),
                 int(self.product_vars['minimum_limit'].get() or 10),
@@ -1026,41 +1027,50 @@ class ERPSystem:
             var.set('')
     
     def on_product_select(self, event):
-        """Handle product selection"""
-        selection = self.products_tree.selection()
-        if selection:
-            item = self.products_tree.item(selection[0])
-            values = item['values']
-            
-            self.product_vars['product_code'].set(values[0])
-            self.product_vars['product_name'].set(values[1])
-            self.product_vars['unit_of_measure'].set(values[2])
-            self.product_vars['purchase_price'].set(values[3])
-            self.product_vars['selling_price'].set(values[4])
-            self.product_vars['minimum_limit'].set(values[5])
+            """Handle product selection"""
+            selection = self.products_tree.selection()
+            if selection:
+                item = self.products_tree.item(selection[0])
+                values = item['values']
+                
+                # product_code est à l'index 0, Category à l'index 1
+                # Mais vous avez besoin de product_code pour les autres fonctions
+                product_code = values[0]  # Ajouté
+                self.product_vars['Category'].set(values[1])
+                self.product_vars['product_name'].set(values[2])
+                self.product_vars['Quantitee'].set(values[3])
+                self.product_vars['purchase_price'].set(values[4])
+                self.product_vars['selling_price'].set(values[5])
+                self.product_vars['minimum_limit'].set(values[6])
+                
+                # Stocker product_code pour référence
+                if not hasattr(self, 'selected_product_code'):
+                    self.selected_product_code = tk.StringVar()
+                self.selected_product_code.set(product_code)
     
     def refresh_product_combos(self):
-        """Refresh product combo boxes in sales and inventory tabs"""
-        try:
-            # Get updated product list
-            self.cursor.execute("SELECT product_code, product_name FROM products")
-            products = self.cursor.fetchall()
-            product_list = [f"{code} - {name}" for code, name in products]
-            
-            # Update sales tab product combo
-            if hasattr(self, 'sales_product_combo'):
-                current_value = self.item_vars['product_code'].get()
-                self.sales_product_combo['values'] = product_list
-                self.item_vars['product_code'].set(current_value)
-            
-            # Update inventory tab product combo
-            if hasattr(self, 'inventory_product_combo'):
-                current_value = self.inventory_vars['product_code'].get()
-                self.inventory_product_combo['values'] = product_list
-                self.inventory_vars['product_code'].set(current_value)
+       
+            """Refresh product combo boxes in sales and inventory tabs"""
+            try:
+                # Get updated product list
+                self.cursor.execute("SELECT product_code, product_name FROM products")  # Changé product_code -> Category
+                products = self.cursor.fetchall()
+                product_list = [f"{code} - {name}" for code, name in products]
                 
-        except Exception as e:
-            print(f"Error refreshing product combos: {e}")
+                # Update sales tab product combo
+                if hasattr(self, 'sales_product_combo'):
+                    current_value = self.item_vars['Category'].get()  # Changé 'Category' -> 'product_code'
+                    self.sales_product_combo['values'] = product_list
+                    self.item_vars['Category'].set(current_value)  # Changé 'Category' -> 'product_code'
+                
+                # Update inventory tab product combo
+                if hasattr(self, 'inventory_product_combo'):
+                    current_value = self.inventory_vars['Category'].get()
+                    self.inventory_product_combo['values'] = product_list
+                    self.inventory_vars['Category'].set(current_value)
+                    
+            except Exception as e:
+                print(f"Error refreshing product combos: {e}")
     
     def refresh_customer_combos(self):
         """Refresh customer combo boxes in sales tab"""
@@ -1102,12 +1112,13 @@ class ERPSystem:
     def on_product_selected(self, event):
         """Update price when product is selected"""
         try:
-            product_info = self.item_vars['product_code'].get()
+            product_info = self.item_vars['product_code'].get()  # Changé 'Category' -> 'product_code'
             if product_info:
+                # La nouvelle format est "Category - product_name"
                 product_code = product_info.split(' - ')[0]
                 
-                self.cursor.execute("SELECT selling_price FROM products WHERE product_code=?",
-                                  (product_code,))
+                self.cursor.execute("SELECT selling_price FROM products WHERE Category=?",  # Changé product_code -> Category
+                                (product_code,))
                 result = self.cursor.fetchone()
                 
                 if result:
@@ -1839,9 +1850,10 @@ class ERPSystem:
         try:
             # Expected columns
             column_mapping = {
-                'product_code': ['product_code', 'code', 'product_id', 'id', 'item_code'],
+                #'product_code': ['product_code', 'code', 'product_id', 'id', 'item_code'],
+
                 'product_name': ['product_name', 'name', 'product', 'item_name', 'item'],
-                'unit_of_measure': ['unit_of_measure', 'unit', 'uom', 'measure'],
+                'Quantitee': ['unit_of_measure', 'unit', 'uom', 'measure'],
                 'purchase_price': ['purchase_price', 'cost', 'buy_price', 'purchase'],
                 'selling_price': ['selling_price', 'price', 'sell_price', 'sale_price'],
                 'minimum_limit': ['minimum_limit', 'min_limit', 'minimum', 'min', 'min_stock']
@@ -1899,7 +1911,7 @@ class ERPSystem:
                             WHERE product_code=?
                         ''', (
                             product_name,
-                            str(row.get('unit_of_measure', '')),
+                            str(row.get('Quantitee', '')),
                             purchase_price,
                             selling_price,
                             minimum_limit,
@@ -1908,7 +1920,7 @@ class ERPSystem:
                     else:
                         # Insert new product
                         self.cursor.execute('''
-                            INSERT INTO products (product_code, product_name, unit_of_measure, 
+                            INSERT INTO products (product_code, Cattegory, product_name, Quantitee, 
                                                 purchase_price, selling_price, minimum_limit)
                             VALUES (?, ?, ?, ?, ?, ?)
                         ''', (

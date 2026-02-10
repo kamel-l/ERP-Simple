@@ -122,6 +122,17 @@ class ERPSystem:
             )
         ''')
         
+        # Expenses table
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                amount REAL,
+                expense_date DATE DEFAULT CURRENT_DATE,
+                notes TEXT
+            )
+        ''')
+        
         self.conn.commit()
         
         # Add sample data if tables are empty
@@ -200,6 +211,7 @@ class ERPSystem:
         self.create_sales_tab()
         self.create_inventory_tab()
         self.create_reports_tab()
+        self.create_expenses_tab()
         
         # Update data first time
         self.update_dashboard()
@@ -738,6 +750,67 @@ class ERPSystem:
         
         display_frame.grid_rowconfigure(0, weight=1)
         display_frame.grid_columnconfigure(0, weight=1)
+        
+        
+    def create_expenses_tab(self):
+                """Create expenses tab"""
+                self.expenses_tab = ttk.Frame(self.notebook)
+                self.notebook.add(self.expenses_tab, text="💸 Expenses")
+
+                # العنوان
+                title_label = tk.Label(
+                    self.expenses_tab,
+                    text="Expenses Management",
+                    font=('Arial', 14, 'bold'),
+                    bg=self.colors['primary'],
+                    fg='white',
+                    pady=15
+                )
+                title_label.pack(fill='x')
+
+                # نموذج الإدخال
+                form_frame = tk.LabelFrame(
+                    self.expenses_tab,
+                    text="Add New Expense",
+                    font=('Arial', 11, 'bold'),
+                    padx=10,
+                    pady=10
+                )
+                form_frame.pack(fill='x', padx=10, pady=10)
+
+                self.expense_vars = {
+                    'title': tk.StringVar(),
+                    'amount': tk.StringVar()
+                }
+
+                # اسم المصروف
+                tk.Label(form_frame, text="Expense Name:", font=('Arial', 10)).grid(
+                    row=0, column=0, sticky='e', padx=5, pady=5
+                )
+                tk.Entry(form_frame, textvariable=self.expense_vars['title'],
+                        width=30, font=('Arial', 10)).grid(
+                    row=0, column=1, padx=5, pady=5
+                )
+
+                # المبلغ
+                tk.Label(form_frame, text="Amount:", font=('Arial', 10)).grid(
+                    row=1, column=0, sticky='e', padx=5, pady=5
+                )
+                tk.Entry(form_frame, textvariable=self.expense_vars['amount'],
+                        width=30, font=('Arial', 10)).grid(
+                    row=1, column=1, padx=5, pady=5
+                )
+
+                # زر الحفظ
+                tk.Button(
+                    form_frame,
+                    text="Save Expense",
+                    command=self.save_expense,
+                    bg=self.colors['success'],
+                    fg='white',
+                    width=15
+                ).grid(row=2, column=0, columnspan=2, pady=10)
+                
     
     # ===== Customer Functions =====
     
@@ -2050,6 +2123,68 @@ class ERPSystem:
     def inventory_count(self):
         """Inventory count"""
         messagebox.showinfo("Inventory Count", "This feature will be developed in future versions")
+        
+        
+    def calculate_profit_loss(self):
+            try:
+                # Total sales
+                self.cursor.execute("SELECT SUM(net_total) FROM sales")
+                total_sales = self.cursor.fetchone()[0] or 0
+
+                # Cost of goods (from purchases)
+                self.cursor.execute("SELECT SUM(total_cost) FROM purchases")
+                total_cost = self.cursor.fetchone()[0] or 0
+
+                # Expenses
+                self.cursor.execute("SELECT SUM(amount) FROM expenses")
+                total_expenses = self.cursor.fetchone()[0] or 0
+
+                profit = total_sales - total_cost - total_expenses
+
+                return total_sales, total_cost, total_expenses, profit
+
+            except:
+                return 0, 0, 0, 0    
+            
+            
+    def show_profit_report(self):
+            sales, cost, expenses, profit = self.calculate_profit_loss()
+
+            messagebox.showinfo(
+                "Profit & Loss",
+                f"Total Sales: {sales}\n"
+                f"Cost of Goods: {cost}\n"
+                f"Expenses: {expenses}\n\n"
+                f"Net Profit: {profit}"
+            )
+    
+    def save_expense(self):
+            """Save expense to database"""
+            title = self.expense_vars['title'].get().strip()
+            amount = self.expense_vars['amount'].get().strip()
+
+            if not title or not amount:
+                messagebox.showwarning("Warning", "Please enter expense name and amount")
+                return
+
+            try:
+                amount = float(amount)
+
+                self.cursor.execute(
+                    "INSERT INTO expenses (title, amount) VALUES (?, ?)",
+                    (title, amount)
+                )
+                self.conn.commit()
+
+                messagebox.showinfo("Success", "Expense saved successfully")
+
+                # تفريغ الحقول
+                self.expense_vars['title'].set("")
+                self.expense_vars['amount'].set("")
+
+            except ValueError:
+                messagebox.showerror("Error", "Amount must be a number")
+            
     
     def show_help(self):
         """Show user guide"""

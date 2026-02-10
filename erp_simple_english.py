@@ -70,7 +70,7 @@ class ERPSystem:
         # Products table
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS products (
-                
+                product_code INTEGER PRIMARY KEY AUTOINCREMENT,
                 Category TEXT ,
                 product_name TEXT NOT NULL,
                 Quantitee TEXT,
@@ -1177,6 +1177,49 @@ class ERPSystem:
             
             self.conn.commit()
             
+            # === Save invoice to CSV automatically ===
+            try:
+                csv_file = "invoices.csv"
+
+                # Prepare invoice data
+                data = []
+                for item in self.sale_items_tree.get_children():
+                    values = self.sale_items_tree.item(item)['values']
+                    product_name = values[0]
+                    quantity = values[1]
+                    price = values[2]
+                    total = values[3]
+
+                    data.append([
+                        invoice_number,
+                        customer_code,
+                        product_name,
+                        quantity,
+                        price,
+                        total,
+                        self.sale_totals['net_total'].get()
+                    ])
+
+                df = pd.DataFrame(data, columns=[
+                    "Invoice Number",
+                    "Customer Code",
+                    "Product Name",
+                    "Quantity",
+                    "Price",
+                    "Total",
+                    "Net Invoice"
+                ])
+
+                # Append to CSV if exists
+                if os.path.exists(csv_file):
+                    df.to_csv(csv_file, mode="a", index=False, header=False)
+                else:
+                    df.to_csv(csv_file, index=False)
+
+            except Exception as e:
+                print("CSV save error:", e)
+
+            
             # Save to CSV file
             self.save_invoice_to_csv(csv_data)
             
@@ -1539,10 +1582,10 @@ class ERPSystem:
             
             # Information label
             info_text = """
-CSV Format Requirements:
-• Use comma (,) as separator
-• First row must contain column headers
-• Encoding: UTF-8
+                    CSV Format Requirements:
+                    • Use comma (,) as separator
+                    • First row must contain column headers
+                    • Encoding: UTF-8
             """
             info_label = tk.Label(import_window, text=info_text,
                                  font=('Arial', 9), justify='left',

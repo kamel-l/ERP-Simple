@@ -1111,52 +1111,51 @@ class ERPSystem:
             self.sale_vars['invoice_number'].set("INV-00001")
     
     def on_product_selected(self, event):
-        """Update price when product is selected"""
-        try:
-            product_info = self.item_vars['product_code'].get()  # Changé 'Category' -> 'product_code'
-           
-            if product_info:
-                # La nouvelle format est "Category - product_name"
-                product_code = product_info.split(' - ')[0]
-                
-                self.cursor.execute("SELECT selling_price FROM products WHERE product_code=?",  # Changé product_code -> Category
-                                )
-                result = self.cursor.fetchone()
-                
-                if result:
-                    self.item_vars['price'].set(str(result[0]))
-        except Exception as e:
-            print(f"Error loading product price: {e}")
+            """Update price when product is selected"""
+            try:
+                product_name = self.item_vars['Category'].get()  # product selected from combobox
+
+                if product_name:
+                    # Get price using product_name
+                    self.cursor.execute(
+                        "SELECT selling_price FROM products WHERE product_name=?",
+                        (product_name,)
+                    )
+                    result = self.cursor.fetchone()
+
+                    if result:
+                        self.item_vars['price'].set(str(result[0]))
+
+            except Exception as e:
+                print(f"Error loading product price: {e}")
     
     def add_sale_item(self):
-        """Add item to invoice"""
-        try:
-            product_info = self.item_vars['product_name'].get()
-            if not product_info:
-                messagebox.showwarning("Warning", "Please select a product")
-                return
-            
-            product_code = product_info.split(' - ')[0]
-            product_name = product_info.split(' - ')[1]
-            quantity = int(self.item_vars['quantity'].get())
-            price = float(self.item_vars['price'].get())
-            total = quantity * price
-            
-            # Store product code in item tags for later retrieval
-            item_id = self.sale_items_tree.insert('', 'end', 
-                                       values=(product_name, quantity, price, total),
-                                       tags=(product_code,))
-            
-            self.calculate_invoice_totals()
-            
-            # Clear item fields
-            self.item_vars['product_code'].set('')
-            self.item_vars['quantity'].set('1')
-            self.item_vars['price'].set('')
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Error adding item: {str(e)}")
-    
+                """Add item to invoice"""
+                try:
+                    product_name = self.item_vars['Category'].get()
+                    if not product_name:
+                        messagebox.showwarning("Warning", "Please select a product")
+                        return
+                    
+                    quantity = int(self.item_vars['quantity'].get())
+                    price = float(self.item_vars['price'].get())
+                    total = quantity * price
+                    
+                    # Insert item (no product_code for now)
+                    self.sale_items_tree.insert(
+                        '', 'end',
+                        values=(product_name, quantity, price, total)
+                    )
+                    
+                    self.calculate_invoice_totals()
+                    
+                    # Clear item fields
+                    self.item_vars['Category'].set('')
+                    self.item_vars['quantity'].set('1')
+                    self.item_vars['price'].set('')
+                    
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error adding item: {str(e)}")
     def remove_sale_item(self):
         """Remove selected item from invoice"""
         selection = self.sale_items_tree.selection()

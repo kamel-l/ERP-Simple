@@ -85,12 +85,12 @@ class ERPSystem:
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS inventory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Category TEXT,
+                product_name TEXT,
                 movement TEXT,
                 quantity INTEGER,
                 date DATETIME DEFAULT CURRENT_TIMESTAMP,
                 reference TEXT,
-                FOREIGN KEY (Category) REFERENCES products(Category)
+                FOREIGN KEY (product_name) REFERENCES products(product_name)
             )
         ''')
         
@@ -608,7 +608,7 @@ class ERPSystem:
         form_frame.pack(fill='x', padx=10, pady=10)
         
         self.inventory_vars = {
-            'Category': tk.StringVar(),
+            'product_name': tk.StringVar(),
             'movement': tk.StringVar(value='in'),
             'quantity': tk.StringVar(),
             'reference': tk.StringVar()
@@ -617,12 +617,12 @@ class ERPSystem:
         tk.Label(form_frame, text="Product:", font=('Arial', 10)).grid(
             row=0, column=0, sticky='e', padx=5, pady=5)
         
-        self.cursor.execute("SELECT Category, product_name FROM products")
+        self.cursor.execute("SELECT product_name FROM products")
         products = self.cursor.fetchall()
-        product_list = [f"{code} - {name}" for code, name in products]
+        product_list = [ name for name in products]
         
         self.inventory_product_combo = ttk.Combobox(form_frame,
-                                    textvariable=self.inventory_vars['Category'],
+                                    textvariable=self.inventory_vars['product_name'],
                                     values=product_list, width=30, font=('Arial', 10))
         self.inventory_product_combo.grid(row=0, column=1, sticky='w', padx=5, pady=5)
         
@@ -661,7 +661,7 @@ class ERPSystem:
                                    font=('Arial', 11, 'bold'))
         table_frame.pack(fill='both', expand=True, padx=10, pady=10)
         
-        columns = ('ID', 'Category', 'Movement', 'Quantity', 'Date', 'Reference')
+        columns = ('ID', 'product_name', 'Movement', 'Quantity', 'Date', 'Reference')
         self.inventory_tree = ttk.Treeview(table_frame, columns=columns,
                                           show='headings', height=15)
         
@@ -1375,7 +1375,7 @@ class ERPSystem:
     def add_inventory_movement(self):
         """Add inventory movement"""
         try:
-            product_info = self.inventory_vars['Category'].get()
+            product_info = self.inventory_vars['product_name'].get()
             if not product_info:
                 messagebox.showwarning("Warning", "Please select a product")
                 return
@@ -1386,13 +1386,31 @@ class ERPSystem:
             reference = self.inventory_vars['reference'].get()
             
             self.cursor.execute('''
-                INSERT INTO inventory (Category, movement, quantity, reference)
+                INSERT INTO inventory (product_name, movement, quantity, reference)
                 VALUES (?, ?, ?, ?)
             ''', (product_code, movement, quantity, reference))
+            
+            code = self.product_vars['product_name'].get().strip()
+            
+            self.cursor.execute('''
+                UPDATE products 
+                SET Category=?, product_name=?, Quantitee=?, purchase_price=?, 
+                    selling_price=?, minimum_limit=?
+                WHERE product_name=?
+            ''', (
+                #self.product_vars['Category'].get(),
+                self.product_vars['product_name'].get(),
+                self.product_vars['Quantitee'].get(),
+                #float(self.product_vars['purchase_price'].get() or 0),
+                #float(self.product_vars['selling_price'].get() or 0),
+                #int(self.product_vars['minimum_limit'].get() or 10),
+                code
+            ))
             
             self.conn.commit()
             self.load_inventory()
             self.clear_inventory_form()
+            
             messagebox.showinfo("Success", "Inventory movement added successfully")
             
         except Exception as e:
@@ -1400,7 +1418,7 @@ class ERPSystem:
     
     def clear_inventory_form(self):
         """Clear inventory form"""
-        self.inventory_vars['Category'].set('')
+        self.inventory_vars['product_name'].set('')
         self.inventory_vars['movement'].set('in')
         self.inventory_vars['quantity'].set('')
         self.inventory_vars['reference'].set('')

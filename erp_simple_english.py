@@ -620,7 +620,7 @@ class ERPSystem:
         
         self.cursor.execute("SELECT product_name FROM products")
         products = self.cursor.fetchall()
-        product_list = [ name for name in products]
+        product_list = [ name[0] for name in products]
         
         self.inventory_product_combo = ttk.Combobox(form_frame,
                                     textvariable=self.inventory_vars['product_name'],
@@ -1374,48 +1374,50 @@ class ERPSystem:
             self.inventory_tree.insert('', 'end', values=row)
     
     def add_inventory_movement(self):
-        """Add inventory movement"""
-        try:
-            product_info = self.inventory_vars['product_name'].get()
-            if not product_info:
-                messagebox.showwarning("Warning", "Please select a product")
-                return
-            
-            product_code = product_info.split(' - ')[0]
-            movement = self.inventory_vars['movement'].get()
-            quantity = int(self.inventory_vars['quantity'].get())
-            reference = self.inventory_vars['reference'].get()
-            
-            self.cursor.execute('''
-                INSERT INTO inventory (product_name, movement, quantity, reference)
-                VALUES (?, ?, ?, ?)
-            ''', (product_code, movement, quantity, reference))
-            
-            code = self.product_vars['product_name'].get().strip()
-            
-            self.cursor.execute('''
-                UPDATE products 
-                SET Category=?, product_name=?, Quantitee=?, purchase_price=?, 
-                    selling_price=?, minimum_limit=?
-                WHERE product_name=?
-            ''', (
-                #self.product_vars['Category'].get(),
-                self.product_vars['product_name'].get(),
-                self.product_vars['Quantitee'].get(),
-                #float(self.product_vars['purchase_price'].get() or 0),
-                #float(self.product_vars['selling_price'].get() or 0),
-                #int(self.product_vars['minimum_limit'].get() or 10),
-                code
-            ))
-            
-            self.conn.commit()
-            self.load_inventory()
-            self.clear_inventory_form()
-            
-            messagebox.showinfo("Success", "Inventory movement added successfully")
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Error adding inventory movement: {str(e)}")
+            """Add inventory movement"""
+            try:
+                product_name = self.inventory_vars['product_name'].get()
+                if not product_name:
+                    messagebox.showwarning("Warning", "Please select a product")
+                    return
+                
+                movement = self.inventory_vars['movement'].get()
+                quantity = int(self.inventory_vars['quantity'].get())
+                reference = self.inventory_vars['reference'].get()
+                
+                # Insert inventory movement
+                self.cursor.execute('''
+                    INSERT INTO inventory (product_name, movement, quantity, reference)
+                    VALUES (?, ?, ?, ?)
+                ''', (product_name, movement, quantity, reference))
+
+                # Get current quantity from products
+                self.cursor.execute("SELECT Quantitee FROM products WHERE product_name=?", (product_name,))
+                current_qty = self.cursor.fetchone()
+                print(current_qty)
+
+                if current_qty:
+                    new_qty = int(current_qty[0]) + quantity
+                else:
+                    new_qty = quantity  # fallback
+
+                # Update product quantity
+                self.cursor.execute('''
+                    UPDATE products 
+                    SET Quantitee=?
+                    WHERE product_name=?
+                ''', (new_qty, product_name))
+
+                self.conn.commit()
+                self.load_inventory()
+                self.load_products()
+                self.clear_inventory_form()
+                
+                messagebox.showinfo("Success", "Inventory movement added successfully")
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Error adding inventory movement: {str(e)}")
+
     
     def clear_inventory_form(self):
         """Clear inventory form"""

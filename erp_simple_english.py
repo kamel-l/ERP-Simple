@@ -478,9 +478,10 @@ class ERPSystem:
             row=0, column=2, sticky='e', padx=5, pady=5)
         
         # Customer dropdown
-        self.cursor.execute("SELECT customer_code, customer_name FROM customers")
+        self.cursor.execute("SELECT customer_name FROM customers")
         customers = self.cursor.fetchall()
-        customer_list = [f"{code} - {name}" for code, name in customers]
+        customer_list = [name[0] for  name in customers]
+        
         
         self.customer_combo = ttk.Combobox(header_frame, 
                                      textvariable=self.sale_vars['customer_code'],
@@ -507,9 +508,9 @@ class ERPSystem:
         tk.Label(items_frame, text="Product:", font=('Arial', 10)).grid(
             row=0, column=0, sticky='e', padx=5, pady=5)
         
-        self.cursor.execute("SELECT Category, product_name FROM products")
+        self.cursor.execute("SELECT product_name FROM products")
         products = self.cursor.fetchall()
-        product_list = [f"{code} - {name}" for code, name in products]
+        product_list = [name[0] for name in products]
         
         self.sales_product_combo = ttk.Combobox(items_frame,
                                     textvariable=self.item_vars['Category'],
@@ -1113,12 +1114,13 @@ class ERPSystem:
         """Update price when product is selected"""
         try:
             product_info = self.item_vars['product_code'].get()  # Changé 'Category' -> 'product_code'
+           
             if product_info:
                 # La nouvelle format est "Category - product_name"
                 product_code = product_info.split(' - ')[0]
                 
-                self.cursor.execute("SELECT selling_price FROM products WHERE Category=?",  # Changé product_code -> Category
-                                (product_code,))
+                self.cursor.execute("SELECT selling_price FROM products WHERE product_code=?",  # Changé product_code -> Category
+                                )
                 result = self.cursor.fetchone()
                 
                 if result:
@@ -1129,7 +1131,7 @@ class ERPSystem:
     def add_sale_item(self):
         """Add item to invoice"""
         try:
-            product_info = self.item_vars['product_code'].get()
+            product_info = self.item_vars['product_name'].get()
             if not product_info:
                 messagebox.showwarning("Warning", "Please select a product")
                 return

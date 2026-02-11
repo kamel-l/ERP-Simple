@@ -85,12 +85,12 @@ class ERPSystem:
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS inventory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Category TEXT,
+                product_name TEXT,
                 movement TEXT,
                 quantity INTEGER,
                 date DATETIME DEFAULT CURRENT_TIMESTAMP,
                 reference TEXT,
-                FOREIGN KEY (Category) REFERENCES products(Category)
+                FOREIGN KEY (product_name) REFERENCES products(product_name)
             )
         ''')
         
@@ -478,9 +478,10 @@ class ERPSystem:
             row=0, column=2, sticky='e', padx=5, pady=5)
         
         # Customer dropdown
-        self.cursor.execute("SELECT customer_code, customer_name FROM customers")
+        self.cursor.execute("SELECT customer_name FROM customers")
         customers = self.cursor.fetchall()
-        customer_list = [f"{code} - {name}" for code, name in customers]
+        customer_list = [name[0] for  name in customers]
+        
         
         self.customer_combo = ttk.Combobox(header_frame, 
                                      textvariable=self.sale_vars['customer_code'],
@@ -507,9 +508,9 @@ class ERPSystem:
         tk.Label(items_frame, text="Product:", font=('Arial', 10)).grid(
             row=0, column=0, sticky='e', padx=5, pady=5)
         
-        self.cursor.execute("SELECT Category, product_name FROM products")
+        self.cursor.execute("SELECT product_name FROM products")
         products = self.cursor.fetchall()
-        product_list = [f"{code} - {name}" for code, name in products]
+        product_list = [name[0] for name in products]
         
         self.sales_product_combo = ttk.Combobox(items_frame,
                                     textvariable=self.item_vars['Category'],
@@ -608,7 +609,7 @@ class ERPSystem:
         form_frame.pack(fill='x', padx=10, pady=10)
         
         self.inventory_vars = {
-            'Category': tk.StringVar(),
+            'product_name': tk.StringVar(),
             'movement': tk.StringVar(value='in'),
             'quantity': tk.StringVar(),
             'reference': tk.StringVar()
@@ -617,12 +618,12 @@ class ERPSystem:
         tk.Label(form_frame, text="Product:", font=('Arial', 10)).grid(
             row=0, column=0, sticky='e', padx=5, pady=5)
         
-        self.cursor.execute("SELECT Category, product_name FROM products")
+        self.cursor.execute("SELECT product_name FROM products")
         products = self.cursor.fetchall()
-        product_list = [f"{code} - {name}" for code, name in products]
+        product_list = [ name[0] for name in products]
         
         self.inventory_product_combo = ttk.Combobox(form_frame,
-                                    textvariable=self.inventory_vars['Category'],
+                                    textvariable=self.inventory_vars['product_name'],
                                     values=product_list, width=30, font=('Arial', 10))
         self.inventory_product_combo.grid(row=0, column=1, sticky='w', padx=5, pady=5)
         
@@ -661,7 +662,7 @@ class ERPSystem:
                                    font=('Arial', 11, 'bold'))
         table_frame.pack(fill='both', expand=True, padx=10, pady=10)
         
-        columns = ('ID', 'Category', 'Movement', 'Quantity', 'Date', 'Reference')
+        columns = ('ID', 'product_name', 'Movement', 'Quantity', 'Date', 'Reference')
         self.inventory_tree = ttk.Treeview(table_frame, columns=columns,
                                           show='headings', height=15)
         
@@ -1110,51 +1111,51 @@ class ERPSystem:
             self.sale_vars['invoice_number'].set("INV-00001")
     
     def on_product_selected(self, event):
-        """Update price when product is selected"""
-        try:
-            product_info = self.item_vars['product_code'].get()  # Changé 'Category' -> 'product_code'
-            if product_info:
-                # La nouvelle format est "Category - product_name"
-                product_code = product_info.split(' - ')[0]
-                
-                self.cursor.execute("SELECT selling_price FROM products WHERE Category=?",  # Changé product_code -> Category
-                                (product_code,))
-                result = self.cursor.fetchone()
-                
-                if result:
-                    self.item_vars['price'].set(str(result[0]))
-        except Exception as e:
-            print(f"Error loading product price: {e}")
+            """Update price when product is selected"""
+            try:
+                product_name = self.item_vars['Category'].get()  # product selected from combobox
+
+                if product_name:
+                    # Get price using product_name
+                    self.cursor.execute(
+                        "SELECT selling_price FROM products WHERE product_name=?",
+                        (product_name,)
+                    )
+                    result = self.cursor.fetchone()
+
+                    if result:
+                        self.item_vars['price'].set(str(result[0]))
+
+            except Exception as e:
+                print(f"Error loading product price: {e}")
     
     def add_sale_item(self):
-        """Add item to invoice"""
-        try:
-            product_info = self.item_vars['product_code'].get()
-            if not product_info:
-                messagebox.showwarning("Warning", "Please select a product")
-                return
-            
-            product_code = product_info.split(' - ')[0]
-            product_name = product_info.split(' - ')[1]
-            quantity = int(self.item_vars['quantity'].get())
-            price = float(self.item_vars['price'].get())
-            total = quantity * price
-            
-            # Store product code in item tags for later retrieval
-            item_id = self.sale_items_tree.insert('', 'end', 
-                                       values=(product_name, quantity, price, total),
-                                       tags=(product_code,))
-            
-            self.calculate_invoice_totals()
-            
-            # Clear item fields
-            self.item_vars['product_code'].set('')
-            self.item_vars['quantity'].set('1')
-            self.item_vars['price'].set('')
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Error adding item: {str(e)}")
-    
+                """Add item to invoice"""
+                try:
+                    product_name = self.item_vars['Category'].get()
+                    if not product_name:
+                        messagebox.showwarning("Warning", "Please select a product")
+                        return
+                    
+                    quantity = int(self.item_vars['quantity'].get())
+                    price = float(self.item_vars['price'].get())
+                    total = quantity * price
+                    
+                    # Insert item (no product_code for now)
+                    self.sale_items_tree.insert(
+                        '', 'end',
+                        values=(product_name, quantity, price, total)
+                    )
+                    
+                    self.calculate_invoice_totals()
+                    
+                    # Clear item fields
+                    self.item_vars['Category'].set('')
+                    self.item_vars['quantity'].set('1')
+                    self.item_vars['price'].set('')
+                    
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error adding item: {str(e)}")
     def remove_sale_item(self):
         """Remove selected item from invoice"""
         selection = self.sale_items_tree.selection()
@@ -1373,34 +1374,54 @@ class ERPSystem:
             self.inventory_tree.insert('', 'end', values=row)
     
     def add_inventory_movement(self):
-        """Add inventory movement"""
-        try:
-            product_info = self.inventory_vars['Category'].get()
-            if not product_info:
-                messagebox.showwarning("Warning", "Please select a product")
-                return
-            
-            product_code = product_info.split(' - ')[0]
-            movement = self.inventory_vars['movement'].get()
-            quantity = int(self.inventory_vars['quantity'].get())
-            reference = self.inventory_vars['reference'].get()
-            
-            self.cursor.execute('''
-                INSERT INTO inventory (Category, movement, quantity, reference)
-                VALUES (?, ?, ?, ?)
-            ''', (product_code, movement, quantity, reference))
-            
-            self.conn.commit()
-            self.load_inventory()
-            self.clear_inventory_form()
-            messagebox.showinfo("Success", "Inventory movement added successfully")
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Error adding inventory movement: {str(e)}")
+            """Add inventory movement"""
+            try:
+                product_name = self.inventory_vars['product_name'].get()
+                if not product_name:
+                    messagebox.showwarning("Warning", "Please select a product")
+                    return
+                
+                movement = self.inventory_vars['movement'].get()
+                quantity = int(self.inventory_vars['quantity'].get())
+                reference = self.inventory_vars['reference'].get()
+                
+                # Insert inventory movement
+                self.cursor.execute('''
+                    INSERT INTO inventory (product_name, movement, quantity, reference)
+                    VALUES (?, ?, ?, ?)
+                ''', (product_name, movement, quantity, reference))
+
+                # Get current quantity from products
+                self.cursor.execute("SELECT Quantitee FROM products WHERE product_name=?", (product_name,))
+                current_qty = self.cursor.fetchone()
+                print(current_qty)
+
+                if current_qty:
+                    new_qty = int(current_qty[0]) + quantity
+                else:
+                    new_qty = quantity  # fallback
+
+                # Update product quantity
+                self.cursor.execute('''
+                    UPDATE products 
+                    SET Quantitee=?
+                    WHERE product_name=?
+                ''', (new_qty, product_name))
+
+                self.conn.commit()
+                self.load_inventory()
+                self.load_products()
+                self.clear_inventory_form()
+                
+                messagebox.showinfo("Success", "Inventory movement added successfully")
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Error adding inventory movement: {str(e)}")
+
     
     def clear_inventory_form(self):
         """Clear inventory form"""
-        self.inventory_vars['Category'].set('')
+        self.inventory_vars['product_name'].set('')
         self.inventory_vars['movement'].set('in')
         self.inventory_vars['quantity'].set('')
         self.inventory_vars['reference'].set('')

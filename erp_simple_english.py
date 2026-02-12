@@ -469,13 +469,11 @@ class ERPSystem:
             'discount': tk.StringVar(value="0")
         }
         
-        tk.Label(header_frame, text="Invoice Number:", font=('Arial', 10)).grid(
-            row=0, column=0, sticky='e', padx=5, pady=5)
-        tk.Entry(header_frame, textvariable=self.sale_vars['invoice_number'],
-                width=20, font=('Arial', 10)).grid(row=0, column=1, sticky='w', padx=5, pady=5)
+        #tk.Label(header_frame, text="Invoice Number:", font=('Arial', 10)).grid(row=0, column=0, sticky='e', padx=5, pady=5)
+        #tk.Entry(header_frame, textvariable=self.sale_vars['invoice_number'],width=20, font=('Arial', 10)).grid(row=0, column=1, sticky='w', padx=5, pady=5)
         
         tk.Label(header_frame, text="Customer:", font=('Arial', 10)).grid(
-            row=0, column=2, sticky='e', padx=5, pady=5)
+            row=0, column=0, sticky='e', padx=5, pady=5)
         
         # Customer dropdown
         self.cursor.execute("SELECT customer_name FROM customers")
@@ -486,7 +484,7 @@ class ERPSystem:
         self.customer_combo = ttk.Combobox(header_frame, 
                                      textvariable=self.sale_vars['customer_code'],
                                      values=customer_list, width=30, font=('Arial', 10))
-        self.customer_combo.grid(row=0, column=3, sticky='w', padx=5, pady=5)
+        self.customer_combo.grid(row=0, column=1, sticky='w', padx=5, pady=5)
         
         tk.Label(header_frame, text="Discount:", font=('Arial', 10)).grid(
             row=1, column=0, sticky='e', padx=5, pady=5)
@@ -1092,23 +1090,7 @@ class ERPSystem:
     
     # ===== Sales Functions =====
     
-    def generate_invoice_number(self):
-        """Generate next invoice number"""
-        try:
-            self.cursor.execute("SELECT MAX(invoice_number) FROM sales")
-            last_invoice = self.cursor.fetchone()[0]
-            
-            if last_invoice:
-                num = int(last_invoice.split('-')[1]) + 1
-            else:
-                num = 1
-            
-            invoice_number = f"INV-{num:05d}"
-            self.sale_vars['invoice_number'].set(invoice_number)
-            
-        except Exception as e:
-            print(f"Error generating invoice number: {e}")
-            self.sale_vars['invoice_number'].set("INV-00001")
+    
     
     def on_product_selected(self, event):
             """Update price when product is selected"""
@@ -1184,6 +1166,24 @@ class ERPSystem:
         except Exception as e:
             print(f"Error calculating totals: {e}")
     
+    def generate_invoice_number(self):
+        """Generate next invoice number"""
+        try:
+            self.cursor.execute("SELECT MAX(invoice_number) FROM sales")
+            last_invoice = self.cursor.fetchone()[0]
+            
+            if last_invoice:
+                num = int(last_invoice.split('-')[1]) + 1
+            else:
+                num = 1
+            
+            invoice_number = f"INV-{num:05d}"
+            self.sale_vars['invoice_number'].set(invoice_number)
+            
+        except Exception as e:
+            print(f"Error generating invoice number: {e}")
+            self.sale_vars['invoice_number'].set("INV-00001")
+            
     def save_invoice(self):
         """Save invoice to database"""
         try:

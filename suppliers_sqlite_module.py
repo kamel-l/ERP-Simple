@@ -1,5 +1,6 @@
 import sqlite3
 from tkinter import ttk, messagebox
+import tkinter as tk
 
 
 class SupplierDB:
@@ -140,3 +141,20 @@ class SupplierUI:
         self.name_entry.delete(0, "end")
         self.phone_entry.delete(0, "end")
         self.address_entry.delete(0, "end")
+
+
+def main():
+    """Main function to run the system"""
+    root = tk.Tk()
+    app = SupplierUI(root)
+    
+    # Add icon (optional)
+    try:
+        root.iconbitmap(default='erp_icon.ico')
+    except:
+        pass
+    
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()

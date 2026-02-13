@@ -727,29 +727,49 @@ class ERPSystem:
         form_frame.pack(fill='x', padx=10, pady=10)
         
         self.inventory_vars = {
+            'category': tk.StringVar(value='All'),
             'product_name': tk.StringVar(),
             'movement': tk.StringVar(value='in'),
             'quantity': tk.StringVar(),
             'reference': tk.StringVar()
         }
         
-        tk.Label(form_frame, text="Product:", font=('Arial', 10)).grid(
+        # === ROW 0: Category and Product ===
+        # Category filter
+        tk.Label(form_frame, text="Category:", font=('Arial', 10, 'bold')).grid(
             row=0, column=0, sticky='e', padx=5, pady=5)
+        
+        # Get all categories from products
+        self.cursor.execute("SELECT DISTINCT Category FROM products WHERE Category IS NOT NULL AND Category != '' ORDER BY Category")
+        categories = self.cursor.fetchall()
+        category_list = ['All'] + [cat[0] for cat in categories]
+        
+        self.inventory_category_combo = ttk.Combobox(form_frame,
+                                    textvariable=self.inventory_vars['category'],
+                                    values=category_list, width=20, font=('Arial', 10),
+                                    state='readonly')
+        self.inventory_category_combo.grid(row=0, column=1, sticky='w', padx=5, pady=5)
+        self.inventory_category_combo.bind('<<ComboboxSelected>>', self.filter_products_by_category)
+        
+        # Product selection
+        tk.Label(form_frame, text="Product:", font=('Arial', 10)).grid(
+            row=0, column=2, sticky='e', padx=5, pady=5)
         
         self.cursor.execute("SELECT product_name FROM products")
         products = self.cursor.fetchall()
-        product_list = [ name[0] for name in products]
+        product_list = [name[0] for name in products]
         
         self.inventory_product_combo = ttk.Combobox(form_frame,
                                     textvariable=self.inventory_vars['product_name'],
                                     values=product_list, width=30, font=('Arial', 10))
-        self.inventory_product_combo.grid(row=0, column=1, sticky='w', padx=5, pady=5)
+        self.inventory_product_combo.grid(row=0, column=3, sticky='w', padx=5, pady=5)
         
+        # === ROW 1: Movement Type and Quantity ===
         tk.Label(form_frame, text="Movement Type:", font=('Arial', 10)).grid(
-            row=0, column=2, sticky='e', padx=5, pady=5)
+            row=1, column=0, sticky='e', padx=5, pady=5)
         
         movement_frame = tk.Frame(form_frame)
-        movement_frame.grid(row=0, column=3, sticky='w', padx=5, pady=5)
+        movement_frame.grid(row=1, column=1, sticky='w', padx=5, pady=5)
         
         tk.Radiobutton(movement_frame, text="In", variable=self.inventory_vars['movement'],
                       value='in', font=('Arial', 10)).pack(side='left', padx=5)
@@ -757,18 +777,19 @@ class ERPSystem:
                       value='out', font=('Arial', 10)).pack(side='left', padx=5)
         
         tk.Label(form_frame, text="Quantity:", font=('Arial', 10)).grid(
-            row=1, column=0, sticky='e', padx=5, pady=5)
-        tk.Entry(form_frame, textvariable=self.inventory_vars['quantity'],
-                width=15, font=('Arial', 10)).grid(row=1, column=1, sticky='w', padx=5, pady=5)
-        
-        tk.Label(form_frame, text="Reference:", font=('Arial', 10)).grid(
             row=1, column=2, sticky='e', padx=5, pady=5)
-        tk.Entry(form_frame, textvariable=self.inventory_vars['reference'],
-                width=30, font=('Arial', 10)).grid(row=1, column=3, sticky='w', padx=5, pady=5)
+        tk.Entry(form_frame, textvariable=self.inventory_vars['quantity'],
+                width=15, font=('Arial', 10)).grid(row=1, column=3, sticky='w', padx=5, pady=5)
         
-        # Buttons
+        # === ROW 2: Reference ===
+        tk.Label(form_frame, text="Reference:", font=('Arial', 10)).grid(
+            row=2, column=0, sticky='e', padx=5, pady=5)
+        tk.Entry(form_frame, textvariable=self.inventory_vars['reference'],
+                width=30, font=('Arial', 10)).grid(row=2, column=1, columnspan=3, sticky='w', padx=5, pady=5)
+        
+        # === ROW 3: Buttons ===
         buttons_frame = tk.Frame(form_frame)
-        buttons_frame.grid(row=2, column=0, columnspan=4, pady=10)
+        buttons_frame.grid(row=3, column=0, columnspan=4, pady=10)
         
         tk.Button(buttons_frame, text="Add Movement", command=self.add_inventory_movement,
                  bg=self.colors['success'], fg='white', width=15).pack(side='left', padx=5)
@@ -1437,11 +1458,21 @@ class ERPSystem:
                     self.sales_product_combo['values'] = product_list
                     self.item_vars['Category'].set(current_value)  # Changé 'Category' -> 'product_code'
                 
+                # Update inventory tab category combo
+                if hasattr(self, 'inventory_category_combo'):
+                    self.cursor.execute("SELECT DISTINCT Category FROM products WHERE Category IS NOT NULL AND Category != '' ORDER BY Category")
+                    categories = self.cursor.fetchall()
+                    category_list = ['All'] + [cat[0] for cat in categories]
+                    current_category = self.inventory_vars['category'].get()
+                    self.inventory_category_combo['values'] = category_list
+                    # Keep current selection if still valid
+                    if current_category not in category_list:
+                        self.inventory_vars['category'].set('All')
+                
                 # Update inventory tab product combo
                 if hasattr(self, 'inventory_product_combo'):
-                    current_value = self.inventory_vars['Category'].get()
-                    self.inventory_product_combo['values'] = product_list
-                    self.inventory_vars['Category'].set(current_value)
+                    # Refresh based on current category filter
+                    self.filter_products_by_category()
                     
             except Exception as e:
                 print(f"Error refreshing product combos: {e}")
@@ -1760,21 +1791,50 @@ class ERPSystem:
                 quantity = int(self.inventory_vars['quantity'].get())
                 reference = self.inventory_vars['reference'].get()
                 
+                if quantity <= 0:
+                    messagebox.showwarning("Warning", "Quantity must be greater than 0")
+                    return
+                
+                # Get current quantity from products
+                self.cursor.execute("SELECT Quantitee FROM products WHERE product_name=?", (product_name,))
+                current_qty = self.cursor.fetchone()
+                
+                if current_qty and current_qty[0]:
+                    try:
+                        current_stock = int(current_qty[0])
+                    except (ValueError, TypeError):
+                        current_stock = 0
+                else:
+                    current_stock = 0
+                
+                # Calculate new quantity based on movement type
+                if movement == 'in':
+                    new_qty = current_stock + quantity
+                    movement_text = "added to"
+                elif movement == 'out':
+                    new_qty = current_stock - quantity
+                    movement_text = "removed from"
+                    
+                    # Vérifier si le stock est suffisant
+                    if new_qty < 0:
+                        response = messagebox.askyesno(
+                            "Insufficient Stock",
+                            f"Current stock: {current_stock}\n"
+                            f"Requested quantity: {quantity}\n"
+                            f"This will result in negative stock: {new_qty}\n\n"
+                            f"Do you want to proceed anyway?"
+                        )
+                        if not response:
+                            return
+                else:
+                    messagebox.showerror("Error", "Invalid movement type")
+                    return
+                
                 # Insert inventory movement
                 self.cursor.execute('''
                     INSERT INTO inventory (product_name, movement, quantity, reference)
                     VALUES (?, ?, ?, ?)
                 ''', (product_name, movement, quantity, reference))
-
-                # Get current quantity from products
-                self.cursor.execute("SELECT Quantitee FROM products WHERE product_name=?", (product_name,))
-                current_qty = self.cursor.fetchone()
-                print(current_qty)
-
-                if current_qty:
-                    new_qty = int(current_qty[0]) + quantity
-                else:
-                    new_qty = quantity  # fallback
 
                 # Update product quantity
                 self.cursor.execute('''
@@ -1786,20 +1846,65 @@ class ERPSystem:
                 self.conn.commit()
                 self.load_inventory()
                 self.load_products()
+                self.update_dashboard()
                 self.clear_inventory_form()
                 
-                messagebox.showinfo("Success", "Inventory movement added successfully")
+                messagebox.showinfo("Success", 
+                    f"Inventory movement added successfully\n\n"
+                    f"Product: {product_name}\n"
+                    f"Quantity {movement_text} stock: {quantity}\n"
+                    f"Previous stock: {current_stock}\n"
+                    f"New stock: {new_qty}")
                 
+            except ValueError:
+                messagebox.showerror("Error", "Please enter a valid quantity (number)")
             except Exception as e:
+                self.conn.rollback()
                 messagebox.showerror("Error", f"Error adding inventory movement: {str(e)}")
 
     
     def clear_inventory_form(self):
         """Clear inventory form"""
+        self.inventory_vars['category'].set('All')
         self.inventory_vars['product_name'].set('')
         self.inventory_vars['movement'].set('in')
         self.inventory_vars['quantity'].set('')
         self.inventory_vars['reference'].set('')
+        # Reload all products when clearing
+        self.filter_products_by_category()
+    
+    def filter_products_by_category(self, event=None):
+        """Filter products by selected category"""
+        try:
+            selected_category = self.inventory_vars['category'].get()
+            
+            if selected_category == 'All':
+                # Show all products
+                self.cursor.execute("SELECT product_name FROM products ORDER BY product_name")
+            else:
+                # Filter by category
+                self.cursor.execute(
+                    "SELECT product_name FROM products WHERE Category = ? ORDER BY product_name",
+                    (selected_category,)
+                )
+            
+            products = self.cursor.fetchall()
+            product_list = [name[0] for name in products]
+            
+            # Update the product combo box
+            self.inventory_product_combo['values'] = product_list
+            
+            # Clear the current selection if it's not in the filtered list
+            current_product = self.inventory_vars['product_name'].get()
+            if current_product and current_product not in product_list:
+                self.inventory_vars['product_name'].set('')
+            
+            # If only one product in the list, auto-select it
+            if len(product_list) == 1:
+                self.inventory_vars['product_name'].set(product_list[0])
+                
+        except Exception as e:
+            print(f"Error filtering products by category: {e}")
     
     # ===== Report Functions =====
     

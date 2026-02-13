@@ -163,10 +163,7 @@ class ERPSystem:
                     (4, 'pc', 'Keyboard', 'piece', 70, 100, 30),
                     (5, 'pc', '24 Inch Monitor', 'unit', 900, 1400, 8)
                 ]
-                self.cursor.executemany('''
-                    INSERT INTO products (product_code, Category, product_name, Quantitee, purchase_price, selling_price, minimum_limit)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', products)
+               
                 
                 self.conn.commit()
                 print("Sample data added successfully")
@@ -1243,23 +1240,100 @@ class ERPSystem:
                 messagebox.showwarning("Warning", "Please enter product code and name")
                 return
             
+            # Vérifier si le produit existe déjà (par code ou par nom)
             self.cursor.execute('''
-                INSERT INTO products (Category, product_name, Quantitee, 
-                                    purchase_price, selling_price, minimum_limit)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (
-                code,
-                name,
-                self.product_vars['Quantitee'].get(),
-                float(self.product_vars['purchase_price'].get() or 0),
-                float(self.product_vars['selling_price'].get() or 0),
-                int(self.product_vars['minimum_limit'].get() or 10)
-            ))
+                SELECT product_code, product_name FROM products 
+                WHERE Category = ? OR product_name = ?
+            ''', (code, name))
+            existing = self.cursor.fetchone()
             
-            self.conn.commit()
-            self.load_products()
-            self.clear_product_form()
-            messagebox.showinfo("Success", "Product added successfully")
+            if existing:
+                # Le produit existe déjà
+                response = messagebox.askyesno(
+                    "Product Already Exists",
+                    f"A product with this code or name already exists:\n"
+                    f"Code: {existing[0]}\n"
+                    f"Name: {existing[1]}\n\n"
+                    f"Do you want to UPDATE this product instead?"
+                )
+                
+                if response:
+                    # Mettre à jour le produit existant
+                    self.cursor.execute('''
+                        UPDATE products 
+                        SET Category=?, product_name=?, Quantitee=?, purchase_price=?, 
+                            selling_price=?, minimum_limit=?
+                        WHERE Category=? OR product_name=?
+                    ''', (
+                        code,
+                        name,
+                        self.product_vars['Quantitee'].get(),
+                        float(self.product_vars['purchase_price'].get() or 0),
+                        float(self.product_vars['selling_price'].get() or 0),
+                        int(self.product_vars['minimum_limit'].get() or 10),
+                        code,
+                        name
+                    ))
+                    
+                    self.conn.commit()
+                    self.load_products()
+                    self.load_inventory()
+                    self.update_dashboard()
+                    self.refresh_product_combos()
+                    self.clear_product_form()
+                    messagebox.showinfo("Success", "Product updated successfully")
+                else:
+                    return  # L'utilisateur a annulé
+            else:
+                # Le produit n'existe pas, on l'ajoute
+                self.cursor.execute('''
+                    INSERT INTO products (Category, product_name, Quantitee, 
+                                        purchase_price, selling_price, minimum_limit)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (
+                    code,
+                    name,
+                    self.product_vars['Quantitee'].get(),
+                    float(self.product_vars['purchase_price'].get() or 0),
+                    float(self.product_vars['selling_price'].get() or 0),
+                    int(self.product_vars['minimum_limit'].get() or 10)
+                ))
+                
+                self.conn.commit()
+                
+                # Demander si l'utilisateur veut ajouter une quantité initiale
+                add_stock = messagebox.askyesno(
+                    "Initial Stock",
+                    f"Product '{name}' added successfully!\n\nDo you want to add an initial stock quantity?"
+                )
+                
+                if add_stock:
+                    # Demander la quantité initiale
+                    from tkinter import simpledialog
+                    initial_qty = simpledialog.askinteger(
+                        "Initial Quantity",
+                        f"Enter initial stock quantity for '{name}':",
+                        minvalue=0
+                    )
+                    
+                    if initial_qty and initial_qty > 0:
+                        # Créer un mouvement d'entrée automatique
+                        self.cursor.execute('''
+                            INSERT INTO inventory (product_name, movement, quantity, reference)
+                            VALUES (?, 'in', ?, 'Initial Stock')
+                        ''', (name, initial_qty))
+                        self.conn.commit()
+                
+                self.load_products()
+                self.load_inventory()
+                self.update_dashboard()
+                self.refresh_product_combos()
+                self.clear_product_form()
+                
+                if not add_stock:
+                    messagebox.showinfo("Success", "Product added successfully")
+                else:
+                    messagebox.showinfo("Success", "Product and initial stock added successfully")
             
         except sqlite3.IntegrityError:
             messagebox.showerror("Error", "Product code already exists")
@@ -1292,6 +1366,8 @@ class ERPSystem:
             
             self.conn.commit()
             self.load_products()
+            self.load_inventory()  # Rafraîchir aussi l'onglet Inventory
+            self.update_dashboard()  # Rafraîchir le tableau de bord
             self.clear_product_form()
             messagebox.showinfo("Success", "Product updated successfully")
             
@@ -1311,6 +1387,8 @@ class ERPSystem:
                 self.cursor.execute("DELETE FROM products WHERE product_code=?", (code,))
                 self.conn.commit()
                 self.load_products()
+                self.load_inventory()  # Rafraîchir aussi l'onglet Inventory
+                self.update_dashboard()  # Rafraîchir le tableau de bord
                 self.clear_product_form()
                 messagebox.showinfo("Success", "Product deleted successfully")
                 
@@ -1944,7 +2022,7 @@ class ERPSystem:
             # Ask user which type of data to import
             import_window = tk.Toplevel(self.root)
             import_window.title("Import CSV File")
-            import_window.geometry("400x300")
+            import_window.geometry("700x500")
             import_window.transient(self.root)
             import_window.grab_set()
             
@@ -1952,7 +2030,7 @@ class ERPSystem:
             import_window.update_idletasks()
             x = (import_window.winfo_screenwidth() // 2) - (400 // 2)
             y = (import_window.winfo_screenheight() // 2) - (300 // 2)
-            import_window.geometry(f"400x300+{x}+{y}")
+            import_window.geometry(f"400x500+{x}+{y}")
             
             # Title
             title_label = tk.Label(import_window, text="Select Data Type to Import",
@@ -2168,10 +2246,10 @@ class ERPSystem:
         try:
             # Expected columns
             column_mapping = {
-                #'product_code': ['product_code', 'code', 'product_id', 'id', 'item_code'],
-
+                'product_code': ['product_code', 'code', 'product_id', 'id', 'item_code'],
+                'Category': ['category', 'cattegory', 'type', 'group'],
                 'product_name': ['product_name', 'name', 'product', 'item_name', 'item'],
-                'Quantitee': ['unit_of_measure', 'unit', 'uom', 'measure'],
+                'Quantitee': ['quantitee', 'unit_of_measure', 'unit', 'uom', 'measure'],
                 'purchase_price': ['purchase_price', 'cost', 'buy_price', 'purchase'],
                 'selling_price': ['selling_price', 'price', 'sell_price', 'sale_price'],
                 'minimum_limit': ['minimum_limit', 'min_limit', 'minimum', 'min', 'min_stock']
@@ -2198,6 +2276,7 @@ class ERPSystem:
             # Import records
             success_count = 0
             error_count = 0
+            updated_count = 0
             errors = []
             
             for index, row in df.iterrows():
@@ -2215,42 +2294,48 @@ class ERPSystem:
                     selling_price = float(row.get('selling_price', 0) or 0)
                     minimum_limit = int(row.get('minimum_limit', 10) or 10)
                     
-                    # Check if product exists
-                    self.cursor.execute("SELECT product_code FROM products WHERE product_code = ?", 
-                                       (product_code,))
+                    # Check if product exists (by code OR by name)
+                    self.cursor.execute('''
+                        SELECT product_code, product_name FROM products 
+                        WHERE product_code = ? OR Category = ? OR product_name = ?
+                    ''', (product_code, str(row.get('Category', '')), product_name))
                     exists = self.cursor.fetchone()
                     
                     if exists:
                         # Update existing product
                         self.cursor.execute('''
                             UPDATE products 
-                            SET product_name=?, unit_of_measure=?, purchase_price=?, 
+                            SET Category=?, product_name=?, Quantitee=?, purchase_price=?, 
                                 selling_price=?, minimum_limit=?
-                            WHERE product_code=?
+                            WHERE product_code=? OR Category=? OR product_name=?
                         ''', (
+                            str(row.get('Category', '')),
                             product_name,
                             str(row.get('Quantitee', '')),
                             purchase_price,
                             selling_price,
                             minimum_limit,
-                            product_code
+                            product_code,
+                            str(row.get('Category', '')),
+                            product_name
                         ))
+                        updated_count += 1
                     else:
                         # Insert new product
                         self.cursor.execute('''
-                            INSERT INTO products (product_code, Cattegory, product_name, Quantitee, 
+                            INSERT INTO products (product_code, Category, product_name, Quantitee, 
                                                 purchase_price, selling_price, minimum_limit)
-                            VALUES (?, ?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
                         ''', (
                             product_code,
+                            str(row.get('Category', '')),
                             product_name,
-                            str(row.get('unit_of_measure', '')),
+                            str(row.get('Quantitee', '')),
                             purchase_price,
                             selling_price,
                             minimum_limit
                         ))
-                    
-                    success_count += 1
+                        success_count += 1
                     
                 except Exception as e:
                     error_count += 1
@@ -2261,7 +2346,8 @@ class ERPSystem:
             
             # Show results
             result_message = f"Import completed!\n\n"
-            result_message += f"✓ Successfully imported: {success_count}\n"
+            result_message += f"✓ New products added: {success_count}\n"
+            result_message += f"🔄 Existing products updated: {updated_count}\n"
             if error_count > 0:
                 result_message += f"✗ Errors: {error_count}\n\n"
                 if len(errors) <= 5:
